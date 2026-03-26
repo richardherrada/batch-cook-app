@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── NextAuth Models ────────────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum Goal {
+  WEIGHT_LOSS
+  MUSCLE_GAIN
+  MAINTENANCE
+  GENERAL_HEALTH
+}
+
+enum SubscriptionTier {
+  FREE
+  PRO
+  FAMILY
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum IngredientCategory {
+  PRODUCE
+  PROTEIN
+  DAIRY
+  PANTRY
+  FROZEN
+  SPICES
+  OTHER
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum SlotType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+// ─── Core Models ────────────────────────────────────────────────────────────
+
+model User {
+  id                   String           @id @default(cuid())
+  email                String           @unique
+  name                 String?
+  emailVerified        DateTime?
+  image                String?
+  hashedPassword       String?
+  goal                 Goal             @default(GENERAL_HEALTH)
+  dietaryRestrictions  String[]
+  allergies            String[]
+  foodDislikes         String[]
+  servings             Int              @default(1)
+  cookDay              String           @default("sunday")
+  subscriptionTier     SubscriptionTier @default(FREE)
+  stripeCustomerId     String?          @unique
+  stripeSubscriptionId String?          @unique
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  accounts         Account[]
+  sessions         Session[]
+  mealPlans        MealPlan[]
+  favouriteRecipes FavouriteRecipe[]
+}
+
+model Recipe {
+  id            String     @id @default(cuid())
+  name          String     @unique
+  description   String
+  servings      Int
+  prepTime      Int
+  cookTime      Int
+  difficulty    Difficulty
+  instructions  Json
+  macros        Json
+  tags          String[]
+  batchCookTips String?
+  imageUrl      String?
+  mealType      MealType
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  recipeIngredients RecipeIngredient[]
+  mealPlanSlots     MealPlanSlot[]
+  favouritedBy      FavouriteRecipe[]
+
+  @@index([mealType])
+  @@index([difficulty])
+}
+
+model Ingredient {
+  id       String             @id @default(cuid())
+  name     String             @unique
+  unit     String
+  category IngredientCategory
+
+  recipeIngredients RecipeIngredient[]
+  groceryItems      GroceryItem[]
+
+  @@index([category])
+}
+
+model RecipeIngredient {
+  id           String @id @default(cuid())
+  recipeId     String
+  ingredientId String
+  quantity     Float
+
+  recipe     Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([recipeId, ingredientId])
+  @@index([recipeId])
+  @@index([ingredientId])
+}
+
+model MealPlan {
+  id            String   @id @default(cuid())
+  userId        String
+  weekStartDate DateTime
+  createdAt     DateTime @default(now())
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mealPlanSlots  MealPlanSlot[]
+  groceryItems   GroceryItem[]
+  batchCookTasks BatchCookTask[]
+
+  @@unique([userId, weekStartDate])
+  @@index([userId])
+}
+
+model MealPlanSlot {
+  id         String    @id @default(cuid())
+  mealPlanId String
+  day        DayOfWeek
+  slot       SlotType
+  recipeId   String
+
+  mealPlan MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+  recipe   Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([mealPlanId, day, slot])
+  @@index([mealPlanId])
+  @@index([recipeId])
+}
+
+model GroceryItem {
+  id            String  @id @default(cuid())
+  mealPlanId    String
+  ingredientId  String
+  totalQuantity Float
+  unit          String
+  isChecked     Boolean @default(false)
+
+  mealPlan   MealPlan   @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([mealPlanId, ingredientId])
+  @@index([mealPlanId])
+}
+
+model BatchCookTask {
+  id               String  @id @default(cuid())
+  mealPlanId       String
+  description      String
+  order            Int
+  isChecked        Boolean @default(false)
+  estimatedMinutes Int
+
+  mealPlan MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+
+  @@index([mealPlanId])
+}
+
+model FavouriteRecipe {
+  id        String   @id @default(cuid())
+  userId    String
+  recipeId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recipeId])
+  @@index([userId])
+  @@index([recipeId])
+}

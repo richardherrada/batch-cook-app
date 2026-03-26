@@ -1,26 +1,96 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Warm color palette */
+  --color-cream-50: #FFFDF7;
+  --color-cream-100: #FFF9E8;
+  --color-cream-200: #FFF3D1;
+  --color-cream-300: #FFEBB3;
+
+  --color-green-50: #F0F7F0;
+  --color-green-100: #D4ECD4;
+  --color-green-200: #A8D9A8;
+  --color-green-300: #6BBF6B;
+  --color-green-400: #3D9B3D;
+  --color-green-500: #2D7A2D;
+  --color-green-600: #1F5C1F;
+  --color-green-700: #164016;
+  --color-green-800: #0E2B0E;
+  --color-green-900: #071607;
+
+  --color-orange-50: #FFF7ED;
+  --color-orange-100: #FFEDD5;
+  --color-orange-200: #FED7AA;
+  --color-orange-300: #FDBA74;
+  --color-orange-400: #FB923C;
+  --color-orange-500: #F97316;
+  --color-orange-600: #EA580C;
+  --color-orange-700: #C2410C;
+  --color-orange-800: #9A3412;
+  --color-orange-900: #7C2D12;
+
+  --color-sage-50: #F5F7F2;
+  --color-sage-100: #E8EDE2;
+  --color-sage-200: #D1DBC5;
+  --color-sage-300: #B3C4A0;
+  --color-sage-400: #8FA876;
+  --color-sage-500: #6B8C4E;
+  --color-sage-600: #547038;
+
+  /* Difficulty badge colors */
+  --color-easy: #22c55e;
+  --color-medium: #f59e0b;
+  --color-hard: #ef4444;
+}
+
+:root {
+  --background: #FFFDF7;
+  --foreground: #1a1a1a;
+  --muted: #F5F7F2;
+  --muted-foreground: #6b7280;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --border: #E8EDE2;
+  --input: #E8EDE2;
+  --primary: #2D7A2D;
+  --primary-foreground: #ffffff;
+  --secondary: #F5F7F2;
+  --secondary-foreground: #1F5C1F;
+  --accent: #F97316;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --ring: #2D7A2D;
+  --radius: 0.75rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0f1a0f;
+    --foreground: #e8ede2;
+    --muted: #1a2e1a;
+    --muted-foreground: #9ca3af;
+    --card: #162016;
+    --card-foreground: #e8ede2;
+    --border: #2D4A2D;
+    --input: #2D4A2D;
+    --primary: #6BBF6B;
+    --primary-foreground: #0E2B0E;
+    --secondary: #1a2e1a;
+    --secondary-foreground: #A8D9A8;
+    --accent: #FB923C;
+    --accent-foreground: #1a1a1a;
+    --ring: #6BBF6B;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
