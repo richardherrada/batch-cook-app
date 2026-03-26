@@ -13,6 +13,70 @@ const updateGroceryItemsSchema = z.object({
   ),
 })
 
+/**
+ * Sync grocery items from the meal plan's recipes.
+ * Consolidates duplicate ingredients across meals, preserves checked state.
+ */
+async function syncGroceryItems(planId: string) {
+  // Get all recipe ingredients from the plan's slots
+  const slots = await prisma.mealPlanSlot.findMany({
+    where: { mealPlanId: planId },
+    include: {
+      recipe: {
+        include: {
+          recipeIngredients: {
+            include: { ingredient: true },
+          },
+        },
+      },
+    },
+  })
+
+  // Consolidate ingredients: sum quantities per ingredient
+  const consolidated = new Map<
+    string,
+    { ingredientId: string; totalQuantity: number; unit: string }
+  >()
+
+  for (const slot of slots) {
+    for (const ri of slot.recipe.recipeIngredients) {
+      const existing = consolidated.get(ri.ingredientId)
+      if (existing) {
+        existing.totalQuantity += ri.quantity
+      } else {
+        consolidated.set(ri.ingredientId, {
+          ingredientId: ri.ingredientId,
+          totalQuantity: ri.quantity,
+          unit: ri.ingredient.unit,
+        })
+      }
+    }
+  }
+
+  // Get existing grocery items to preserve checked state
+  const existingItems = await prisma.groceryItem.findMany({
+    where: { mealPlanId: planId },
+  })
+  const checkedMap = new Map(
+    existingItems.map((item) => [item.ingredientId, item.isChecked])
+  )
+
+  // Delete old items and recreate (simplest way to handle removed recipes)
+  await prisma.groceryItem.deleteMany({ where: { mealPlanId: planId } })
+
+  if (consolidated.size === 0) return
+
+  await prisma.groceryItem.createMany({
+    data: Array.from(consolidated.values()).map((item) => ({
+      mealPlanId: planId,
+      ingredientId: item.ingredientId,
+      totalQuantity: item.totalQuantity,
+      unit: item.unit,
+      isChecked: checkedMap.get(item.ingredientId) ?? false,
+    })),
+  })
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ planId: string }> }
@@ -25,7 +89,6 @@ export async function GET(
 
     const { planId } = await params
 
-    // Verify the plan belongs to the user
     const mealPlan = await prisma.mealPlan.findFirst({
       where: { id: planId, userId: session.user.id },
     })
@@ -37,6 +100,9 @@ export async function GET(
       )
     }
 
+    // Sync grocery items from current plan recipes
+    await syncGroceryItems(planId)
+
     const groceryItems = await prisma.groceryItem.findMany({
       where: { mealPlanId: planId },
       include: {
@@ -47,20 +113,7 @@ export async function GET(
       },
     })
 
-    // Group items by ingredient category
-    const grouped = groceryItems.reduce(
-      (acc, item) => {
-        const category = item.ingredient.category
-        if (!acc[category]) {
-          acc[category] = []
-        }
-        acc[category].push(item)
-        return acc
-      },
-      {} as Record<string, typeof groceryItems>
-    )
-
-    return NextResponse.json({ grouped, items: groceryItems })
+    return NextResponse.json({ items: groceryItems })
   } catch (error) {
     console.error("Grocery list fetch error:", error)
     return NextResponse.json(
@@ -82,7 +135,6 @@ export async function PUT(
 
     const { planId } = await params
 
-    // Verify the plan belongs to the user
     const mealPlan = await prisma.mealPlan.findFirst({
       where: { id: planId, userId: session.user.id },
     })

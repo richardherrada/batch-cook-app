@@ -76,7 +76,6 @@ export type GroceryItemData = {
 };
 
 export type GroceryListData = {
-  id: string;
   items: GroceryItemData[];
 };
 
@@ -121,19 +120,17 @@ async function fetcher<T>(url: string, init?: RequestInit): Promise<T> {
 
 // ─── Meal Plans ─────────────────────────────────────────────────────────────
 
-export function useMealPlans() {
-  return useQuery<MealPlan[]>({
-    queryKey: ["meal-plans"],
-    queryFn: () => fetcher("/api/meal-plans"),
-  });
-}
-
 export function useCurrentMealPlan() {
   return useQuery<MealPlan | null>({
     queryKey: ["meal-plans", "current"],
     queryFn: async () => {
-      const plans = await fetcher<MealPlan[]>("/api/meal-plans");
-      return plans.length > 0 ? plans[0] : null;
+      const res = await fetch("/api/meal-plans");
+      if (res.status === 401) return null;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Request failed (${res.status})`);
+      }
+      return res.json();
     },
   });
 }
@@ -143,6 +140,29 @@ export function useGenerateMealPlan() {
   return useMutation({
     mutationFn: () =>
       fetcher<MealPlan>("/api/meal-plans", { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["meal-plans"] });
+    },
+  });
+}
+
+export function useAddToPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      day,
+      slot,
+      recipeId,
+    }: {
+      day: string;
+      slot: string;
+      recipeId: string;
+    }) =>
+      fetcher("/api/meal-plans/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ day, slot, recipeId }),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["meal-plans"] });
     },
@@ -181,6 +201,10 @@ export function useRecipes(params?: {
   page?: number;
   limit?: number;
 }) {
+  const limit = params?.limit ?? 12;
+  const page = params?.page ?? 1;
+  const offset = (page - 1) * limit;
+
   const searchParams = new URLSearchParams();
   if (params?.search) searchParams.set("search", params.search);
   if (params?.mealType) searchParams.set("mealType", params.mealType);
@@ -188,20 +212,47 @@ export function useRecipes(params?: {
   if (params?.tags?.length) searchParams.set("tags", params.tags.join(","));
   if (params?.maxPrepTime)
     searchParams.set("maxPrepTime", String(params.maxPrepTime));
-  if (params?.page) searchParams.set("page", String(params.page));
-  if (params?.limit) searchParams.set("limit", String(params.limit));
+  searchParams.set("limit", String(limit));
+  searchParams.set("offset", String(offset));
 
   const qs = searchParams.toString();
   return useQuery<{ recipes: RecipeSummary[]; total: number; page: number; totalPages: number }>({
     queryKey: ["recipes", params],
-    queryFn: () => fetcher(`/api/recipes${qs ? `?${qs}` : ""}`),
+    queryFn: async () => {
+      const raw = await fetcher<{ recipes: RecipeSummary[]; total: number; limit: number; offset: number }>(
+        `/api/recipes${qs ? `?${qs}` : ""}`
+      );
+      return {
+        recipes: raw.recipes,
+        total: raw.total,
+        page,
+        totalPages: Math.ceil(raw.total / limit),
+      };
+    },
   });
 }
 
 export function useRecipe(id: string) {
   return useQuery<RecipeDetail>({
     queryKey: ["recipes", id],
-    queryFn: () => fetcher(`/api/recipes/${id}`),
+    queryFn: async () => {
+      const raw = await fetcher<Record<string, unknown>>(`/api/recipes/${id}`);
+      const recipeIngredients = (raw.recipeIngredients as Array<{
+        id: string;
+        quantity: number;
+        ingredient: { id: string; name: string; unit: string; category: string };
+      }>) || [];
+      return {
+        ...raw,
+        ingredients: recipeIngredients.map((ri) => ({
+          id: ri.ingredient.id,
+          name: ri.ingredient.name,
+          quantity: ri.quantity,
+          unit: ri.ingredient.unit,
+          category: ri.ingredient.category,
+        })),
+      } as RecipeDetail;
+    },
     enabled: !!id,
   });
 }
@@ -214,6 +265,27 @@ export function useAlternativeRecipes(mealType: string, excludeId: string) {
         `/api/recipes?mealType=${mealType}&limit=5&exclude=${excludeId}`
       ).then((res: unknown) => (res as { recipes: RecipeSummary[] }).recipes),
     enabled: !!mealType,
+  });
+}
+
+export type ImportResult = {
+  matched: boolean;
+  recipe?: RecipeDetail & { recipeIngredients: unknown[] };
+  confidence?: string;
+  explanation?: string;
+  sourceUrl?: string;
+  detectedDish?: string;
+  suggestions?: unknown[];
+};
+
+export function useImportRecipe() {
+  return useMutation({
+    mutationFn: (url: string) =>
+      fetcher<ImportResult>("/api/recipes/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      }),
   });
 }
 
@@ -242,7 +314,7 @@ export function useToggleGroceryItem() {
       fetcher(`/api/grocery-list/${planId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId, isChecked }),
+        body: JSON.stringify({ items: [{ id: itemId, isChecked }] }),
       }),
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({

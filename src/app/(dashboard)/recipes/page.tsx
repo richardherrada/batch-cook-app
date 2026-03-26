@@ -8,9 +8,12 @@ import {
   ChevronRight,
   AlertCircle,
   RefreshCw,
+  Link as LinkIcon,
 } from "lucide-react";
 import { RecipeCard } from "@/components/features/recipes/recipe-card";
 import { SkeletonCard } from "@/components/ui/skeleton";
+import { AddToPlanModal } from "@/components/features/meal-plan/add-to-plan-modal";
+import { ImportRecipeModal } from "@/components/features/recipes/import-recipe-modal";
 import { useRecipes, type RecipeSummary } from "@/hooks/use-api";
 
 const MEAL_TYPES = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"] as const;
@@ -101,14 +104,25 @@ export default function RecipesPage() {
   const hasActiveFilters =
     mealType || difficulty || selectedTags.length > 0 || maxPrepTime;
 
+  const [addingRecipe, setAddingRecipe] = useState<RecipeSummary | null>(null);
+  const [showImport, setShowImport] = useState(false);
+
   function handleAddToPlan(recipe: RecipeSummary) {
-    // Placeholder: would open a modal to select day/slot
-    console.log("Add to plan:", recipe.id);
+    setAddingRecipe(recipe);
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Recipe Library</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Recipe Library</h1>
+        <button
+          onClick={() => setShowImport(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] text-[var(--accent-foreground)] px-3 py-2 text-sm font-medium hover:opacity-90 transition-opacity min-h-[44px]"
+        >
+          <LinkIcon className="h-4 w-4" />
+          Import link
+        </button>
+      </div>
 
       {/* Search bar */}
       <div className="flex gap-2">
@@ -312,6 +326,29 @@ export default function RecipesPage() {
             )}
           </p>
         </div>
+      )}
+
+      {/* Add to plan modal */}
+      {addingRecipe && (
+        <AddToPlanModal
+          recipe={addingRecipe}
+          onClose={() => setAddingRecipe(null)}
+        />
+      )}
+
+      {/* Import from link modal */}
+      {showImport && (
+        <ImportRecipeModal
+          onClose={() => setShowImport(false)}
+          onAddToPlan={(recipeId) => {
+            // Find the recipe in current data to open the add-to-plan modal
+            const recipe = data?.recipes.find((r) => r.id === recipeId);
+            if (recipe) {
+              setShowImport(false);
+              setAddingRecipe(recipe);
+            }
+          }}
+        />
       )}
     </div>
   );

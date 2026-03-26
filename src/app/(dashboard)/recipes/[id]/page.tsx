@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { DifficultyBadge, Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AddToPlanModal } from "@/components/features/meal-plan/add-to-plan-modal";
 import { useRecipe } from "@/hooks/use-api";
 
 // ─── Loading Skeleton ───────────────────────────────────────────────────────
@@ -107,6 +108,7 @@ export default function RecipeDetailPage({
   const { data: recipe, isLoading, error, refetch } = useRecipe(id);
   const [servingScale, setServingScale] = useState(1);
   const [activeTimers, setActiveTimers] = useState<Record<number, boolean>>({});
+  const [showAddModal, setShowAddModal] = useState(false);
 
   if (isLoading) {
     return <RecipeDetailSkeleton />;
@@ -338,10 +340,20 @@ export default function RecipeDetailPage({
       )}
 
       {/* Add to plan CTA */}
-      <button className="w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] py-3.5 font-medium hover:opacity-90 transition-opacity min-h-[44px]">
+      <button
+        onClick={() => setShowAddModal(true)}
+        className="w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] py-3.5 font-medium hover:opacity-90 transition-opacity min-h-[44px]"
+      >
         <CalendarPlus className="h-5 w-5" />
         Add to this week&apos;s plan
       </button>
+
+      {showAddModal && recipe && (
+        <AddToPlanModal
+          recipe={recipe}
+          onClose={() => setShowAddModal(false)}
+        />
+      )}
     </div>
   );
 }

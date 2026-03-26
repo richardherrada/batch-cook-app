@@ -12,7 +12,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 
 const navItems = [
@@ -30,6 +30,41 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { status } = useSession();
+
+  // Pages that don't require auth
+  const publicPaths = ["/recipes"];
+  const isPublicPage = publicPaths.some(
+    (p) => pathname === p || pathname.startsWith(p + "/")
+  );
+
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-[var(--primary)] border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (status === "unauthenticated" && !isPublicPage) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <div className="text-center space-y-4 max-w-sm">
+          <ChefHat className="h-12 w-12 text-[var(--primary)] mx-auto" />
+          <h2 className="text-xl font-bold">Sign in to continue</h2>
+          <p className="text-[var(--muted-foreground)] text-sm">
+            You need to be signed in to access this page.
+          </p>
+          <Link
+            href="/login"
+            className="inline-block rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            Sign in
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen">
